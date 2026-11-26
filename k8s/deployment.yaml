@@ -1,0 +1,83 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fraud-detection
+  namespace: fraud-detection
+  labels:
+    app: fraud-detection
+    app.kubernetes.io/name: fraud-detection
+    app.kubernetes.io/part-of: fraud-detection-platform
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: fraud-detection
+  template:
+    metadata:
+      labels:
+        app: fraud-detection
+        app.kubernetes.io/name: fraud-detection
+    spec:
+      securityContext:
+        fsGroup: 10001
+      initContainers:
+      - name: init-data-dir
+        image: krishnaveluvali/fraud-detection:v1.0.0
+        imagePullPolicy: IfNotPresent
+        command: ["sh", "-c", "chown -R 10001:10001 /data && chmod -R 775 /data"]
+        securityContext:
+          runAsUser: 0
+        volumeMounts:
+        - name: ig-data
+          mountPath: /data
+      containers:
+      - name: fraud-detection
+        image: krishnaveluvali/fraud-detection:v1.0.0
+        imagePullPolicy: IfNotPresent
+        env:
+        - name: IG_DB_PATH
+          value: /data/invoice_guard.db
+        - name: PYTHONUNBUFFERED
+          value: "1"
+        ports:
+        - containerPort: 8000
+          name: http
+          protocol: TCP
+        resources:
+          requests:
+            cpu: 100m
+            memory: 512Mi
+          limits:
+            cpu: 2000m
+            memory: 3Gi
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8000
+            scheme: HTTP
+          initialDelaySeconds: 15
+          periodSeconds: 15
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: 8000
+            scheme: HTTP
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        volumeMounts:
+        - name: ig-data
+          mountPath: /data
+        - name: tmp-dir
+          mountPath: /tmp
+      volumes:
+      - name: ig-data
+        persistentVolumeClaim:
+          claimName: fraud-detection-pvc
+      - name: tmp-dir
+        emptyDir: {}

@@ -1,0 +1,36 @@
+name: invoice-guard
+
+services:
+  invoice-guard:
+    build: .
+    image: invoice-guard:0.1.0
+    # The app has no login. It listens on this machine only unless IG_BIND is changed.
+    ports:
+      - "${IG_BIND:-127.0.0.1}:${IG_PORT:-8000}:8000"
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      IG_DB_PATH: /data/invoice_guard.db
+    extra_hosts:
+      # lets IG_OLLAMA_URL=http://host.docker.internal:11434 work on Linux servers too
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ig-data:/data
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 3g
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  ig-data:

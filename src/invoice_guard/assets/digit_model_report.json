@@ -1,0 +1,19 @@
+{
+  "threshold": 0.7393,
+  "unseen_fonts": {
+    "found_digit_other_font": 0.982,
+    "found_digit_pasted": 0.905,
+    "found_digit_same_font": 0.958,
+    "found_number_retyped": 0.993,
+    "clean_pages_falsely_flagged": 0.142
+  },
+  "training_fonts": {
+    "found_digit_other_font": 1.0,
+    "found_digit_pasted": 0.912,
+    "found_digit_same_font": 0.993,
+    "found_number_retyped": 0.99,
+    "clean_pages_falsely_flagged": 0.051
+  },
+  "train_pages": 4500,
+  "test_pages": 1500
+}

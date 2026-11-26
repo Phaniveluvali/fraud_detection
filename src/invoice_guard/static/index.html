@@ -1,0 +1,483 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Invoice Guard</title>
+<style>
+:root{--bg:#f2f5f7;--surface:#fff;--surface2:#eaeff3;--line:#d9e0e6;--fg:#13202b;--muted:#566574;
+  --accent:#0e6a72;--accent-fg:#fff;--ok:#1b7f4b;--ok-bg:#e1f3e9;--warn:#8f5405;--warn-bg:#fbefd6;--bad:#b3271f;--bad-bg:#fbe3e1}
+@media (prefers-color-scheme:dark){:root{--bg:#0e141a;--surface:#161f28;--surface2:#1d2934;--line:#2a3846;--fg:#e6ecf2;--muted:#93a2b1;
+  --accent:#4cc0c9;--accent-fg:#06262a;--ok:#52c68d;--ok-bg:#12301f;--warn:#e5a948;--warn-bg:#352708;--bad:#ff7d73;--bad-bg:#3a1714;color-scheme:dark}}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0;padding:20px 16px 40px;background:var(--bg);color:var(--fg);font:14px/1.5 system-ui,"Segoe UI",sans-serif}
+main{max-width:1360px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
+h1{margin:0;font-size:24px}
+h2{margin:0;font-size:15px}
+.sub{margin:2px 0 0;color:var(--muted)}
+button{font:inherit;color:var(--fg);background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:7px 14px;cursor:pointer}
+button:hover:not(:disabled){border-color:var(--accent)}
+button[aria-pressed="true"],button.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-fg)}
+button:disabled{opacity:.5;cursor:default}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:10px;min-width:0}
+.panel>header{display:flex;flex-wrap:wrap;gap:10px;justify-content:space-between;align-items:center;padding:12px 14px;border-bottom:1px solid var(--line)}
+.body{padding:14px}
+.drop{display:flex;flex-direction:column;gap:6px;align-items:center;justify-content:center;text-align:center;
+  border:2px dashed var(--line);border-radius:8px;padding:22px 14px;cursor:pointer;flex:1 1 280px;min-width:0;overflow-wrap:anywhere}
+.drop.over,.drop:hover,.drop:focus-within{border-color:var(--accent)}
+.drop input{position:absolute;opacity:0;width:1px;height:1px}
+.drop small,.muted{color:var(--muted)}
+.grid{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,.85fr);gap:16px;align-items:start}
+@media (max-width:900px){.grid{grid-template-columns:minmax(0,1fr)}}
+.viewer{position:sticky;top:12px}
+@media (max-width:900px){.viewer{position:static}}
+.stage{background:var(--surface2);padding:14px;border-radius:0 0 10px 10px;max-height:calc(100vh - 110px);overflow:auto}
+.sheet{position:relative;background:#fff;border:1px solid var(--line)}
+.sheet img{display:block;width:100%;height:auto}
+/* highlight boxes sit on the white page, so their colours do not follow the theme */
+.mark{position:absolute;padding:0;border-radius:3px;background:transparent;border:1px solid transparent;cursor:pointer}
+.mark.field:hover{border-color:#0e6a72;background:rgba(14,106,114,.12)}
+.mark.edited{border:2px solid #d92d20;background:rgba(255,196,0,.38)}
+.mark.changed{border:2px solid #d92d20;background:rgba(217,45,32,.18)}
+.mark.selected{border:3px solid #0b57d0;background:rgba(11,87,208,.22);box-shadow:0 0 0 3px rgba(11,87,208,.25)}
+.mark .tip{position:absolute;right:calc(100% + 6px);top:50%;transform:translateY(-50%);white-space:nowrap;background:#d92d20;color:#fff;font:600 11px/1.5 system-ui,sans-serif;padding:0 6px;border-radius:3px}
+.side{display:flex;flex-direction:column;gap:16px;min-width:0}
+.score{font-size:42px;font-weight:700;line-height:1;font-variant-numeric:tabular-nums}
+.tag{font-size:12px;font-weight:600;padding:2px 8px;border-radius:4px;white-space:nowrap}
+.pass,.low,.good{background:var(--ok-bg);color:var(--ok)}
+.review,.mid{background:var(--warn-bg);color:var(--warn)}
+.flag,.high,.error,.poor{background:var(--bad-bg);color:var(--bad)}
+.skipped{background:var(--surface2);color:var(--muted)}
+ul{list-style:none;margin:0;padding:0}
+li{border-top:1px solid var(--line);overflow-wrap:anywhere}
+li:first-child{border-top:0}
+li.static{padding:11px 14px}
+li p{margin:4px 0 0;color:var(--muted);font-size:13px}
+.head{display:flex;justify-content:space-between;gap:10px;font-weight:600}
+.pick{display:grid;grid-template-columns:minmax(90px,130px) minmax(0,1fr) auto;gap:4px 10px;width:100%;text-align:left;
+  align-items:baseline;border:0;border-radius:0;background:transparent;padding:9px 14px}
+.pick.selected{background:var(--surface2);box-shadow:inset 3px 0 0 var(--accent)}
+.pick .name{color:var(--muted);font-size:13px}
+.pick .value{font-weight:600;overflow-wrap:anywhere}
+.pick .flags{grid-column:2/-1;font-size:12px;color:var(--bad)}
+.pick .flags.info{color:var(--muted)}
+.pick.region{display:block}
+.opinion{margin-top:6px;font-size:12px;font-weight:600;padding:3px 8px;border-radius:4px}
+.itemhead{padding:8px 14px 2px;font-size:12px;font-weight:600;color:var(--muted);border-top:1px solid var(--line)}
+.msg{padding:10px 14px;border-radius:8px;background:var(--bad-bg);color:var(--bad)}
+.note{color:var(--muted);font-size:12px;margin:0}
+</style>
+</head>
+<body>
+<main>
+  <div>
+    <h1>Invoice Guard</h1>
+    <p class="sub">Checks invoices for edited amounts, reads their fields and shows where each one is.</p>
+  </div>
+
+  <div class="row" role="group" aria-label="Mode">
+    <button id="modeCheck" type="button" aria-pressed="true">Check an invoice</button>
+    <button id="modeCompare" type="button" aria-pressed="false">Compare with original</button>
+  </div>
+
+  <form id="form" class="panel body">
+    <div class="row">
+      <label class="drop" id="dropOriginal" hidden>
+        <strong id="nameOriginal">Original (trusted copy)</strong><small>Click or drop a file</small>
+        <input type="file" id="fileOriginal" accept=".pdf,image/*">
+      </label>
+      <label class="drop" id="dropSuspect">
+        <strong id="nameSuspect">Invoice to check</strong><small>Click or drop a PDF or image</small>
+        <input type="file" id="fileSuspect" accept=".pdf,image/*">
+      </label>
+    </div>
+    <div class="row" style="margin-top:12px;justify-content:space-between">
+      <div class="row" id="options">
+        <label><input type="checkbox" id="readFields" checked> Use vision model (fields and second opinion)</label>
+        <label><input type="checkbox" id="register"> Remember for duplicate checks</label>
+      </div>
+      <span></span>
+      <button class="primary" id="run" type="submit" disabled>Check invoice</button>
+    </div>
+  </form>
+
+  <div class="msg" id="error" role="alert" hidden></div>
+  <p class="note" id="busy" role="status" hidden>Analysing… images can take several seconds.</p>
+
+  <div class="grid" id="results" hidden>
+    <section class="panel viewer">
+      <header>
+        <h2 id="docName">Document</h2>
+        <div class="row">
+          <select id="page" aria-label="Page" hidden></select>
+          <div class="row" id="views" role="group" aria-label="View"></div>
+        </div>
+      </header>
+      <div class="stage" id="stage">
+        <div class="sheet" id="sheet"><img id="preview" alt="Invoice page"></div>
+      </div>
+    </section>
+
+    <div class="side">
+      <section class="panel body" aria-live="polite">
+        <div class="row"><span class="score" id="score"></span><span class="tag" id="level"></span></div>
+        <p id="summary"></p>
+      </section>
+      <section class="panel">
+        <header><h2 id="regionsTitle">Edited or suspicious text</h2></header>
+        <ul id="regions"></ul>
+      </section>
+      <section class="panel" id="fieldsPanel">
+        <header><h2>Extracted fields</h2><span class="note" id="modelName"></span></header>
+        <p class="note body" id="fieldsStatus" role="status"></p>
+        <ul id="fields"></ul>
+      </section>
+      <section class="panel" id="checksPanel">
+        <header><h2>Checks</h2></header>
+        <ul id="checks"></ul>
+      </section>
+    </div>
+  </div>
+
+  <p class="note">Findings are signals for a reviewer, not proof of fraud. Field confidence is how sure the model was while reading, not proof the value is right.
+    When fields are extracted, page images are sent to the configured model server.</p>
+</main>
+
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+const STATUS = { pass: "Pass", review: "Review", flag: "Flag", skipped: "Skipped", error: "Error" };
+const LEVEL = { low: "Low risk", review: "Needs review", high: "High risk" };
+let state = emptyState("check");
+let runNumber = 0;
+
+function emptyState(mode) {
+  return { mode, images: {}, view: "marks", regions: [], fields: [], selected: null, opinions: {} };
+}
+
+// Server and model text can contain anything printed on a document, so it is only ever set
+// through textContent, never as markup.
+function el(tag, text, className) {
+  const node = document.createElement(tag);
+  if (text !== undefined) node.textContent = text;
+  if (className) node.className = className;
+  return node;
+}
+function staticItem(title, detail, tag, tagClass) {
+  const li = el("li", undefined, "static"), head = el("div", undefined, "head");
+  head.append(el("span", title));
+  if (tag) head.append(el("span", tag, "tag " + tagClass));
+  li.append(head);
+  if (detail) li.append(el("p", detail));
+  return li;
+}
+const file = id => $(id).files[0];
+
+function refreshForm() {
+  const compare = state.mode === "compare";
+  $("dropOriginal").hidden = !compare;
+  $("options").style.visibility = compare ? "hidden" : "visible";
+  $("run").textContent = compare ? "Compare" : "Check invoice";
+  $("run").disabled = !file("fileSuspect") || (compare && !file("fileOriginal"));
+  $("nameSuspect").textContent = file("fileSuspect")?.name ?? "Invoice to check";
+  $("nameOriginal").textContent = file("fileOriginal")?.name ?? "Original (trusted copy)";
+}
+function setMode(mode) {
+  runNumber += 1;
+  state = emptyState(mode);
+  $("modeCheck").setAttribute("aria-pressed", String(mode === "check"));
+  $("modeCompare").setAttribute("aria-pressed", String(mode === "compare"));
+  $("results").hidden = true;
+  $("error").hidden = true;
+  refreshForm();
+}
+$("modeCheck").onclick = () => setMode("check");
+$("modeCompare").onclick = () => setMode("compare");
+
+for (const [zone, input] of [["dropSuspect", "fileSuspect"], ["dropOriginal", "fileOriginal"]]) {
+  $(input).onchange = refreshForm;
+  $(zone).ondragover = e => { e.preventDefault(); $(zone).classList.add("over"); };
+  $(zone).ondragleave = () => $(zone).classList.remove("over");
+  $(zone).ondrop = e => {
+    e.preventDefault();
+    $(zone).classList.remove("over");
+    if (e.dataTransfer.files.length) { $(input).files = e.dataTransfer.files; refreshForm(); }
+  };
+}
+
+/* ---------- viewer and highlights ---------- */
+const pageNumber = () => Number($("page").value || 1);
+
+function drawMarks() {
+  const sheet = $("sheet"), img = $("preview");
+  for (const node of sheet.querySelectorAll(".mark")) node.remove();
+  if (state.view !== "marks" || !img.naturalWidth) return;
+  const page = pageNumber() - 1;
+  const place = (id, box, className, label, tip) => {
+    const [x, y, w, h] = box, pad = 3;
+    const mark = el("button", undefined, "mark " + className + (state.selected === id ? " selected" : ""));
+    mark.type = "button";
+    mark.dataset.id = id;
+    mark.title = label;
+    mark.setAttribute("aria-label", label);
+    mark.style.left = (x - pad) / img.naturalWidth * 100 + "%";
+    mark.style.top = (y - pad) / img.naturalHeight * 100 + "%";
+    mark.style.width = (w + 2 * pad) / img.naturalWidth * 100 + "%";
+    mark.style.height = (h + 2 * pad) / img.naturalHeight * 100 + "%";
+    if (tip) mark.append(el("span", tip, "tip"));
+    mark.onclick = () => select(id, true);
+    sheet.append(mark);
+  };
+  for (const f of state.fields) {
+    if (f.box && f.page === page) place(f.id, f.box, "field", `${f.label}: ${f.value}`);
+  }
+  // edits are drawn last so they stay on top of field outlines
+  for (const r of state.regions) {
+    if (r.page !== page) continue;
+    const changed = state.mode === "compare";
+    place("r" + r.id, [r.x, r.y, r.w, r.h], changed ? "changed" : "edited",
+      r.note || "Area to review", changed ? "Changed" : "Check this");
+  }
+}
+
+function select(id, fromPage) {
+  state.selected = id;
+  const target = state.fields.find(f => f.id === id)
+    ?? state.regions.map(r => ({ id: "r" + r.id, page: r.page, box: [r.x, r.y] })).find(r => r.id === id);
+  if (target?.box && target.page !== null) {
+    if (state.view !== "marks") setView("marks");
+    if (target.page !== pageNumber() - 1) { $("page").value = target.page + 1; showImage(); }
+  }
+  drawMarks();
+  for (const row of document.querySelectorAll(".pick")) row.classList.toggle("selected", row.dataset.id === id);
+  if (fromPage) {
+    document.querySelector(`.pick[data-id="${id}"]`)?.scrollIntoView({ block: "nearest" });
+  } else {
+    $("sheet").querySelector(`.mark[data-id="${id}"]`)?.scrollIntoView({ block: "center", inline: "center" });
+  }
+}
+
+function showImage() {
+  const n = pageNumber();
+  const key = state.view === "ela" ? `page${n}_ela` : `page${n}`;
+  const data = state.images[key] ?? state.images[`page${n}`];
+  $("preview").src = data ? "data:image/png;base64," + data : "";
+}
+$("preview").onload = drawMarks;
+$("page").onchange = showImage;
+
+function setView(view) {
+  state.view = view;
+  for (const b of $("views").children) b.setAttribute("aria-pressed", String(b.dataset.view === view));
+  showImage();
+  drawMarks();
+}
+function setupViewer(images, pages, name) {
+  state.images = images;
+  $("page").replaceChildren(...Array.from({ length: pages }, (_, i) => new Option("Page " + (i + 1), i + 1)));
+  $("page").hidden = pages < 2;
+  const views = [["marks", "Highlights"], ["plain", "Original"]];
+  if (images.page1_ela) views.push(["ela", "Error-level map"]);
+  $("views").replaceChildren(...views.map(([key, label]) => {
+    const button = el("button", label);
+    button.type = "button";
+    button.dataset.view = key;
+    button.onclick = () => setView(key);
+    return button;
+  }));
+  $("docName").textContent = name;
+  setView("marks");
+}
+
+/* ---------- right-hand panels ---------- */
+function pickRow(id, className) {
+  const li = el("li"), button = el("button", undefined, "pick " + className);
+  button.type = "button";
+  button.dataset.id = id;
+  button.onclick = () => select(id, false);
+  li.append(button);
+  return [li, button];
+}
+
+function renderRegions(empty) {
+  if (!state.regions.length) { $("regions").replaceChildren(staticItem(empty)); return; }
+  $("regions").replaceChildren(...state.regions.map(r => {
+    const [li, button] = pickRow("r" + r.id, "region");
+    const title = r.text ? `${r.id}. “${r.text}”` : `${r.id}. Page ${r.page + 1}`;
+    button.append(el("div", title, "value"));
+    button.append(el("div", r.note || (state.mode === "compare" ? "This area differs from the original."
+      : `Found by: ${r.signals.join(", ").replaceAll("_", " ")}`), "name"));
+    const opinion = state.opinions[r.id];
+    if (opinion) button.append(el("div", opinion.text, "opinion " + opinion.tone));
+    return li;
+  }));
+}
+
+const overlaps = (box, page, r) => r.page === page
+  && box[0] < r.x + r.w && r.x < box[0] + box[2] && box[1] < r.y + r.h && r.y < box[1] + box[3];
+
+function fieldRow(field, textAvailable) {
+  const [li, button] = pickRow(field.id, "field-row");
+  const percent = field.confidence === null ? null : Math.floor(field.confidence * 100);
+  const grade = percent === null ? "skipped" : percent >= 90 ? "good" : percent >= 70 ? "mid" : "poor";
+  button.append(el("span", field.label, "name"), el("span", field.value, "value"),
+    el("span", percent === null ? "n/a" : percent + "%", "tag " + grade));
+  if (field.box && state.regions.some(r => overlaps(field.box, field.page, r))) {
+    button.append(el("span", "In a flagged area: this value may have been edited", "flags"));
+  } else if (!field.box) {
+    button.append(el("span", textAvailable ? "Not located on the page, check it by eye"
+      : "No page text to locate it (OCR not installed)", "flags info"));
+  }
+  return li;
+}
+
+function renderFields(result) {
+  const rows = [], all = [];
+  const add = (field, id) => {
+    const entry = { ...field, id };
+    all.push(entry);
+    return fieldRow(entry, result.page_text_available);
+  };
+  result.fields.forEach((f, i) => rows.push(add(f, "f" + i)));
+  result.line_items.forEach((cells, i) => {
+    rows.push(el("li", "Line item " + (i + 1), "itemhead"));
+    cells.forEach((f, j) => rows.push(add(f, `l${i}_${j}`)));
+  });
+  state.fields = all;
+  $("fields").replaceChildren(...rows);
+  $("fieldsStatus").textContent = all.length ? "Click a field to see it on the invoice." : "No fields were read.";
+  $("modelName").textContent = `${result.model} · ${(result.duration_ms / 1000).toFixed(0)}s`;
+  drawMarks();
+}
+
+function showReport(report) {
+  $("score").textContent = report.risk_score + "/100";
+  $("level").textContent = LEVEL[report.risk_level];
+  $("level").className = "tag " + report.risk_level;
+  $("summary").textContent = [report.summary, ...report.warnings].join(" ");
+  $("checksPanel").hidden = false;
+  $("checks").replaceChildren(...report.checks.map(c => staticItem(c.title, c.detail, STATUS[c.status], c.status)));
+  $("regionsTitle").textContent = "Edited or suspicious text";
+  state.regions = report.regions;
+  renderRegions("Nothing flagged.");
+}
+function showComparison(result) {
+  const count = result.differences.length;
+  $("score").textContent = String(count);
+  $("level").textContent = result.identical ? "No differences" : count === 1 ? "Difference" : "Differences";
+  $("level").className = "tag " + (result.identical ? "low" : "high");
+  $("summary").textContent = [result.identical ? "The two files look the same."
+    : "The highlighted areas differ from the original.", ...result.warnings].join(" ");
+  $("checksPanel").hidden = true;
+  $("regionsTitle").textContent = "What changed";
+  state.regions = result.differences;
+  renderRegions("Nothing changed.");
+}
+
+/* ---------- requests ---------- */
+async function post(url, body) {
+  const response = await fetch(url, { method: "POST", body });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(typeof data.detail === "string" ? data.detail : `Request failed (${response.status})`);
+  }
+  return data;
+}
+
+const VERDICT = {
+  agrees: ["Vision model also sees a difference", "poor"],
+  disagrees: ["Vision model does not see a difference", "skipped"],
+  unsure: ["Vision model is unsure", "skipped"],
+  unreliable: ["Vision model opinion discarded: it said the same about an untouched row", "skipped"],
+};
+
+async function reviewFindings(upload, run, regions) {
+  const targets = regions.filter(r => r.signals.includes("typography") && r.note.includes("the label"));
+  if (!targets.length) return;
+  const setAll = (text) => {
+    for (const r of targets) state.opinions[r.id] = { text, tone: "skipped" };
+    renderRegions("Nothing flagged.");
+  };
+  setAll("Asking the vision model for a second opinion…");
+  const body = new FormData();
+  body.append("file", upload);
+  try {
+    const result = await post("/v1/review", body);
+    if (run !== runNumber) return;
+    setAll("The vision model could not compare this area.");
+    for (const item of result.reviews) {
+      const [label, tone] = VERDICT[item.verdict];
+      const sure = item.confidence === null || item.confidence < 0.05 || item.verdict === "unreliable" ? ""
+        : ` (${Math.floor(item.confidence * 100)}% sure of its answer)`;
+      state.opinions[item.region_id] = { text: label + sure + ". Advisory only.", tone };
+    }
+    renderRegions("Nothing flagged.");
+  } catch (error) {
+    if (run === runNumber) setAll("No second opinion. " + error.message);
+  }
+}
+
+async function extractFields(upload, run) {
+  const body = new FormData();
+  body.append("file", upload);
+  $("fieldsStatus").textContent = "Reading the invoice with the vision model… this can take a minute or two.";
+  try {
+    const result = await post("/v1/extract", body);
+    if (run === runNumber) renderFields(result);
+  } catch (error) {
+    if (run === runNumber) $("fieldsStatus").textContent = "Fields could not be extracted. " + error.message;
+  }
+}
+
+$("form").onsubmit = async event => {
+  event.preventDefault();
+  const run = ++runNumber;
+  state = emptyState(state.mode);
+  const compare = state.mode === "compare";
+  const upload = file("fileSuspect");
+  const body = new FormData();
+  let url;
+  if (compare) {
+    body.append("original", file("fileOriginal"));
+    body.append("suspect", upload);
+    url = "/v1/compare?include_images=true";
+  } else {
+    body.append("file", upload);
+    url = "/v1/analyze?include_images=true&register=" + $("register").checked;
+  }
+  $("run").disabled = true;
+  $("busy").hidden = false;
+  $("error").hidden = true;
+  $("results").hidden = true;
+  $("fields").replaceChildren();
+  $("modelName").textContent = "";
+  $("fieldsStatus").textContent = "";
+  try {
+    const data = await post(url, body);
+    if (run !== runNumber) return;
+    const images = data.images ?? {};
+    const pages = compare ? Object.keys(images).filter(k => /^page\d+$/.test(k)).length : data.report.pages;
+    if (compare) showComparison(data); else showReport(data.report);
+    const wantFields = !compare && $("readFields").checked;
+    $("fieldsPanel").hidden = !wantFields;
+    $("results").hidden = false;
+    setupViewer(images, pages || 1, upload.name);
+    if (wantFields) {
+      extractFields(upload, run);
+      reviewFindings(upload, run, state.regions);
+    }
+  } catch (error) {
+    $("error").textContent = "Could not analyse the file. " + error.message;
+    $("error").hidden = false;
+  } finally {
+    $("busy").hidden = true;
+    refreshForm();
+  }
+};
+refreshForm();
+</script>
+</body>
+</html>
